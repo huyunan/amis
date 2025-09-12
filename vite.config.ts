@@ -64,9 +64,6 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    hmr: {
-      overlay: false
-    },
     allowedHosts: ['huyunan.xyz'],
     port: 8888
   },
