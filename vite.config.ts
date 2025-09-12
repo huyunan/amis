@@ -63,6 +63,7 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
+    allowedHosts: ['huyunan.xyz'],
     port: 8888
   },
   resolve: {
