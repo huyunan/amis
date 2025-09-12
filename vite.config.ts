@@ -11,6 +11,7 @@ import transformMobileHtml from './scripts/transformMobileHtml';
 //@ts-ignore
 import i18nPlugin from 'plugin-react-i18n';
 import i18nConfig from './i18nConfig';
+import {Overlay} from 'amis-core';
 
 var I18N = process.env.I18N;
 
@@ -63,6 +64,9 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
+    hmr: {
+      overlay: false
+    },
     allowedHosts: ['huyunan.xyz'],
     port: 8888
   },
