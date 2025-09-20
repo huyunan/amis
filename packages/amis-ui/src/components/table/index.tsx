@@ -193,8 +193,9 @@ export interface ScrollProps {
 export interface TableState {
   selectedRowKeys: Array<string | number>;
   expandedRowKeys: Array<string | number>;
+  widthReady: boolean;
   colWidths: {
-    [name: string]: {
+    [name: string | number]: {
       width: number;
       realWidth: number;
       minWidth: number;
@@ -237,6 +238,7 @@ export class Table extends React.PureComponent<TableProps, TableState> {
           : [])
       ],
       colWidths: {},
+      widthReady: false,
       hoverRow: null
     };
   }
@@ -592,7 +594,7 @@ export class Table extends React.PureComponent<TableProps, TableState> {
     }
   }
 
-  renderColGroup(showReal?: boolean) {
+  renderColGroup(showReal: boolean = false, watchWidthChange: boolean = true) {
     const {scroll, tableLayout, columns, rowSelection, expandable, draggable} =
       this.props;
 
@@ -602,8 +604,8 @@ export class Table extends React.PureComponent<TableProps, TableState> {
         columns={columns}
         colWidths={this.state.colWidths}
         isFixed={isFixed}
-        syncTableWidth={this.syncTableWidth}
-        initTableWidth={this.initTableWidth}
+        syncTableWidth={watchWidthChange ? this.syncTableWidth : undefined}
+        initTableWidth={watchWidthChange ? this.initTableWidth : undefined}
         selectable={!!rowSelection}
         expandable={!!expandable}
         draggable={!!draggable}
@@ -702,8 +704,7 @@ export class Table extends React.PureComponent<TableProps, TableState> {
           })
         : dataSource;
 
-    const hasScrollY = scroll && scroll.y;
-    const selfSticky = !!(hasScrollY || (sticky && autoFillHeight));
+    const selfSticky = !!(sticky && autoFillHeight);
 
     return (
       <Head
@@ -1357,12 +1358,18 @@ export class Table extends React.PureComponent<TableProps, TableState> {
       headerClassName
     } = this.props;
 
-    const style = {overflow: 'hidden'};
+    // paddingRight 30 用来解决有内容区有滚动条时，到最右端对不齐问题
+    const style = {
+      overflow: 'hidden',
+      paddingRight: 30
+    };
     if (!!sticky) {
       Object.assign(style, {top: 0});
     }
 
-    const tableStyle = {};
+    const widthReady = this.state.widthReady;
+    const tableStyle: any = {};
+
     if (scroll && (scroll.y || scroll.x)) {
       Object.assign(tableStyle, {
         width:
@@ -1387,10 +1394,10 @@ export class Table extends React.PureComponent<TableProps, TableState> {
         style={style}
       >
         <table
-          className={cx('Table-table')}
-          style={{...tableStyle, tableLayout: 'fixed'}}
+          className={cx('Table-table', widthReady ? 'Table-table--fixed' : '')}
+          style={{...tableStyle}}
         >
-          {this.renderColGroup(true)}
+          {this.renderColGroup(true, false)}
           {showHeader ? this.renderHead() : null}
           {headSummary ? (
             <tbody>{this.renderSummaryRow(headSummary)}</tbody>
@@ -1440,7 +1447,7 @@ export class Table extends React.PureComponent<TableProps, TableState> {
         ) : null}
         <table
           className={cx('Table-table', bodyClassname)}
-          style={{...tableStyle, tableLayout: 'fixed'}}
+          style={{...tableStyle}}
         >
           {this.renderColGroup()}
           {this.renderBody()}
@@ -1459,9 +1466,13 @@ export class Table extends React.PureComponent<TableProps, TableState> {
         style={{overflow: 'hidden'}}
       >
         <table
-          className={cx('Table-table')}
-          style={{width: scroll?.x + 'px' || '100%', tableLayout: 'fixed'}}
+          className={cx(
+            'Table-table',
+            this.state.widthReady ? 'Table-table--fixed' : ''
+          )}
+          style={{width: scroll?.x + 'px' || '100%'}}
         >
+          {this.renderColGroup(true, false)}
           {this.renderFoot()}
         </table>
       </div>
@@ -1500,14 +1511,15 @@ export class Table extends React.PureComponent<TableProps, TableState> {
           width:
             item?.originWidth !== column?.width ? column?.width : item?.width,
           minWidth: column?.minWidth,
-          realWidth: col.offsetWidth,
+          realWidth: col.getBoundingClientRect().width,
           originWidth: column?.width
         };
+        colWidths[index] = colWidths[column.name];
       }
     });
 
     if (!isEqual(colWidths, this.state.colWidths)) {
-      this.setState({colWidths});
+      this.setState({colWidths, widthReady: true});
     }
   }
 
@@ -1627,7 +1639,7 @@ export class Table extends React.PureComponent<TableProps, TableState> {
     });
 
     if (!isEqual(colWidths, this.state.colWidths)) {
-      this.setState({colWidths});
+      this.setState({colWidths}, this.syncTableWidth);
     }
 
     document.body.removeChild(div);
@@ -1670,8 +1682,20 @@ export class Table extends React.PureComponent<TableProps, TableState> {
     const style = {};
     if (hasScrollY) {
       Object.assign(style, {
-        overflow: 'auto scroll',
         maxHeight: scroll.y
+      });
+    }
+
+    const mainStyle = {...this.props.style};
+    if (this.state.widthReady) {
+      Object.keys(this.state.colWidths).forEach(key => {
+        if (!/^\d+$/.test(key)) {
+          return;
+        }
+        const width = this.state.colWidths[key].realWidth;
+        if (width) {
+          mainStyle[`--Table-column-${key}-width`] = `${width}px`;
+        }
       });
     }
 
@@ -1684,6 +1708,7 @@ export class Table extends React.PureComponent<TableProps, TableState> {
           [cx('Table-bordered')]: bordered,
           [cx('Table-resizable')]: resizable
         })}
+        style={mainStyle}
       >
         {title ? (
           <div className={cx('Table-title')}>
